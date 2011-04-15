@@ -53,11 +53,7 @@ if !exists("b:ragel_subtype") || b:ragel_subtype == ''
 endif
 
 if exists('b:ragel_subtype') && b:ragel_subtype != ''
-  " XXX HACK: substitue ALLBUT -> TOP, so the ragel highlighting doesn't leak into the outer code
-  let s:subtype_code = substitute(<SID>ReadOnPath("syntax/".b:ragel_subtype.".vim"), 'ALLBUT', 'TOP', 'g')
-  " let s:subtype_file = '/tmp/'.b:ragel_subtype.'.vim'
-  echo s:subtype_code
-  exec s:subtype_code
+  exec 'runtime! syntax/'.b:ragel_subtype.'.vim'
   " source s:subtype_file
   unlet! b:current_syntax
 endif
