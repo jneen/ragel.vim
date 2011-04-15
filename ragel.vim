@@ -5,47 +5,69 @@
 
 syntax clear
 
-"
-" Outside code
-"
+if !exists("g:ragel_default_subtype")
+  let g:ragel_default_subtype = 'c'
+endif
 
-" Comments
-syntax region ocComment start="\/\*" end="\*\/"
-syntax match ocComment "\/\/.*$"
+function! <SID>Split(path) abort " {{{1
+  if type(a:path) == type([]) | return a:path | endif
+  let split = split(a:path,'\\\@<!\%(\\\\\)*\zs,')
+  return map(split,'substitute(v:val,''\\\([\\,]\)'',''\1'',"g")')
+endfunction " }}}1
 
-" Anything preprocessor
-syntax match ocPreproc "#\(.\|\\\n\)*$"
-syntax region ocPreproc start="#" end="[^\\]$"
+fun! <SID>ReadOnPath(script)
+  for dir in <SID>Split(&rtp)
+    let filepath = dir.'/'.a:script
+    if filereadable(filepath)
+      return join(readfile(filepath), " | ")
+    endif
+  endfor
+endfun
 
-" Strings
-syntax match ocLiteral "'\(\\.\|[^'\\]\)*'"
-syntax match ocLiteral "\"\(\\.\|[^\"\\]\)*\""
+" Try to detect the subtype. stolen from eruby.vim
+if !exists("b:ragel_subtype") || b:ragel_subtype == ''
+  " first check for an annotation in the first 5 lines or on the last line
+  let s:lines = getline(1)."\n".getline(2)."\n".getline(3)."\n".getline(4)."\n".getline(5)."\n".getline("$")
+  let b:ragel_subtype = matchstr(s:lines, 'ragel_subtype=\zs\w\+')
 
-" C/C++ Keywords
-syntax keyword ocType unsigned signed void char short int long float double bool
-syntax keyword ocType inline static extern register const volatile auto
-syntax keyword ocType union enum struct class typedef
-syntax keyword ocType namespace template typename mutable
-syntax keyword ocKeyword break continue default do else for
-syntax keyword ocKeyword goto if return switch while
-syntax keyword ocKeyword new delete this using friend public private protected sizeof
-syntax keyword ocKeyword throw try catch operator typeid
-syntax keyword ocKeyword and bitor xor compl bitand and_eq or_eq xor_eq not not_eq
-syntax keyword ocKeyword static_cast dynamic_cast
+  " failing that, check the filename for .*.rl
+  if b:ragel_subtype == ''
+    let b:ragel_subtype = matchstr(substitute(expand("%:t"),'\c\%(\.rl\|\.ragel\)\+$','',''),'\.\zs\w\+$')
 
-" Numbers
-syntax match ocNumber "[0-9][0-9]*"
-syntax match ocNumber "0x[0-9a-fA-F][0-9a-fA-F]*"
+    " ...and do a couple of transformations if necessary
 
-" Booleans
-syntax keyword ocBoolean true false
+    " .rb -> ruby
+    if b:ragel_subtype == 'rb'
+      let b:ragel_subtype = 'ruby'
+
+    " .m -> objc
+    elseif b:ragel_subtype == 'm'
+      let b:ragel_subtype = 'objc'
+    endif
+  endif
+
+  " default to g:ragel_default_subtype
+  if b:ragel_subtype == ''
+    let b:ragel_subtype = g:ragel_default_subtype
+  endif
+endif
+
+if exists('b:ragel_subtype') && b:ragel_subtype != ''
+  " XXX HACK: substitue ALLBUT -> TOP, so the ragel highlighting doesn't leak into the outer code
+  let s:subtype_code = substitute(<SID>ReadOnPath("syntax/".b:ragel_subtype.".vim"), 'ALLBUT', 'TOP', 'g')
+  " let s:subtype_file = '/tmp/'.b:ragel_subtype.'.vim'
+  echo s:subtype_code
+  exec s:subtype_code
+  " source s:subtype_file
+  unlet! b:current_syntax
+endif
 
 " Identifiers
-syntax match anyId "[a-zA-Z_][a-zA-Z_0-9]*"
+syntax match anyId "[a-zA-Z_][a-zA-Z_0-9]*" contained
 
 " Inline code only
-syntax keyword fsmType fpc fc fcurs fbuf fblen ftargs fstack
-syntax keyword fsmKeyword fhold fgoto fcall fret fentry fnext fexec fbreak
+syntax keyword fsmType fpc fc fcurs fbuf fblen ftargs fstack contained
+syntax keyword fsmKeyword fhold fgoto fcall fret fentry fnext fexec fbreak contained
 
 syntax cluster rlItems contains=rlComment,rlLiteral,rlAugmentOps,rlOtherOps,rlKeywords,rlWrite,rlCodeCurly,rlCodeSemi,rlNumber,anyId,rlLabelColon,rlExprKeywords
 
@@ -57,10 +79,14 @@ syntax region machineSpec2 matchgroup=beginRL start="%%$" end="$" keepend contai
 syntax match rlComment "#.*$" contained
 
 " Literals
-syntax match rlLiteral "'\(\\.\|[^'\\]\)*'[i]*" contained
-syntax match rlLiteral "\"\(\\.\|[^\"\\]\)*\"[i]*" contained
-syntax match rlLiteral /\/\(\\.\|[^\/\\]\)*\/[i]*/ contained
-syntax match rlLiteral "\[\(\\.\|[^\]\\]\)*\]" contained
+" single quoted strings  '...'
+  syntax match rlLiteral "'\(\\.\|[^'\\]\)*'[i]*" contained
+" double quoted strings  "..."
+  syntax match rlLiteral "\"\(\\.\|[^\"\\]\)*\"[i]*" contained
+" simple regexes         /.../
+  syntax match rlLiteral /\/\(\\.\|[^\/\\]\)*\/[i]*/ contained
+" char unions            [...]
+  syntax match rlLiteral "\[\(\\.\|[^\]\\]\)*\]" contained
 
 " Numbers
 syntax match rlNumber "[0-9][0-9]*" contained
@@ -87,14 +113,10 @@ syntax keyword rlExprKeywords when inwhen outwhen err lerr eof from to contained
 
 " Case Labels
 syntax keyword caseLabelKeyword case contained
-syntax cluster caseLabelItems contains=ocComment,ocPreproc,ocLiteral,ocType,ocKeyword,caseLabelKeyword,ocNumber,ocBoolean,anyId,fsmType,fsmKeyword
-syntax match caseLabelColon "case" contains=@caseLabelItems
-syntax match caseLabelColon "case[\t ]\+.*:$" contains=@caseLabelItems
-syntax match caseLabelColon "case[\t ]\+.*:[^=:]"me=e-1 contains=@caseLabelItems
-
-" Labels
-syntax match ocLabelColon "^[\t ]*[a-zA-Z_][a-zA-Z_0-9]*[ \t]*:$" contains=anyLabel
-syntax match ocLabelColon "^[\t ]*[a-zA-Z_][a-zA-Z_0-9]*[ \t]*:[^=:]"me=e-1 contains=anyLabel
+syntax cluster caseLabelItems contains=caseLabelKeyword,anyId,fsmType,fsmKeyword
+syntax match caseLabelColon "case" contains=@caseLabelItems contained
+syntax match caseLabelColon "case[\t ]\+.*:$" contains=@caseLabelItems contained
+syntax match caseLabelColon "case[\t ]\+.*:[^=:]"me=e-1 contains=@caseLabelItems contained
 
 syntax match rlLabelColon "[a-zA-Z_][a-zA-Z_0-9]*[ \t]*:$" contained contains=anyLabel
 syntax match rlLabelColon "[a-zA-Z_][a-zA-Z_0-9]*[ \t]*:[^=:>]"me=e-1 contained contains=anyLabel
@@ -102,10 +124,10 @@ syntax match anyLabel "[a-zA-Z_][a-zA-Z_0-9]*" contained
 
 " All items that can go in a code block.
 
-syntax cluster inlineItems contains=rlCodeCurly,ocComment,ocPreproc,ocLiteral,ocType,ocKeyword,ocNumber,ocBoolean,ocLabelColon,anyId,fsmType,fsmKeyword,caseLabelColon
+syntax cluster inlineItems contains=TOP add=anyId,fsmType,fsmKeyword,caseLabelColon
 
 " Blocks of code. rlCodeCurly is recursive.
-syntax region rlCodeCurly matchgroup=NONE start="{" end="}" contained contains=@inlineItems
+syntax region rlCodeCurly matchgroup=NONE start="{" end="}" keepend contained contains=TOP
 syntax region rlCodeSemi matchgroup=Type start="\<alphtype\>" start="\<getkey\>" start="\<access\>" start="\<variable\>" matchgroup=NONE end=";" contained contains=@inlineItems
 
 syntax region rlWrite matchgroup=Type start="\<write\>" matchgroup=NONE end="[;)]" contained contains=rlWriteKeywords,rlWriteOptions
@@ -125,13 +147,6 @@ syntax sync match ragelSyncPat grouphere NONE "^[^\'\"]*}%%"
 "
 " Specifying Groups
 "
-hi link ocComment Comment
-hi link ocPreproc Macro
-hi link ocLiteral String
-hi link ocType Type
-hi link ocKeyword Keyword
-hi link ocNumber Number
-hi link ocBoolean Boolean
 hi link rlComment Comment
 hi link rlNumber Number
 hi link rlLiteral String
