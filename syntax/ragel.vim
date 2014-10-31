@@ -44,6 +44,11 @@ if !exists("b:ragel_subtype") || b:ragel_subtype == ''
     elseif b:ragel_subtype == 'm'
       let b:ragel_subtype = 'objc'
     endif
+    
+    " .cxx -> cpp
+    elseif b:ragel_subtype == 'cxx'
+      let b:ragel_subtype = 'cpp'
+    endif
   endif
 
   " default to g:ragel_default_subtype
