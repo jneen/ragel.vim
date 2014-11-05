@@ -43,7 +43,6 @@ if !exists("b:ragel_subtype") || b:ragel_subtype == ''
     " .m -> objc
     elseif b:ragel_subtype == 'm'
       let b:ragel_subtype = 'objc'
-    endif
     
     " .cxx -> cpp
     elseif b:ragel_subtype == 'cxx'
