@@ -32,7 +32,7 @@ if !exists("b:ragel_subtype") || b:ragel_subtype == ''
 
   " failing that, check the filename for .*.rl
   if b:ragel_subtype == ''
-    let b:ragel_subtype = matchstr(substitute(expand("%:t"),'\c\%(\.rl\|\.ragel\)\+$','',''),'\.\zs\w\+$')
+    let b:ragel_subtype = matchstr(substitute(expand("%:t"),'\c\%(\.rl\|\.ragel\|\.rgl\)\+$','',''),'\.\zs\w\+$')
 
     " ...and do a couple of transformations if necessary
 
